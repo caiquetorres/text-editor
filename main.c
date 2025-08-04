@@ -1,6 +1,11 @@
-#include <stdio.h>
+#include <stdlib.h>
+
+#include "log/log.h"
 
 int main() {
-	printf("Hello World!\n");
-	return  0;
+	if (init_log() == -1) {
+		exit(1);
+	}
+
+	return 0;
 }

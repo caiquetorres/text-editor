@@ -20,14 +20,14 @@ bool can_log() {
     return true;
 }
 
-int init_log() {
+result init_log() {
 	LOG = fopen("editor.log", "a");
 	if (LOG == NULL) {
 		perror("editor.log");
-		return -1;
+		return FAIL;
 	}
 	last_log_time = time(NULL);
-	return 0;
+	return SUCCESS;
 }
 
 void info(char *msg, ...) {
@@ -42,6 +42,8 @@ void info(char *msg, ...) {
 	va_start(args, msg);
 	vfprintf(LOG, msg, args);
 	va_end(args);
+
+	fprintf(LOG, "\n");
 
 	fflush(LOG);
 }
@@ -59,6 +61,8 @@ void error(char *msg, ...) {
 	vfprintf(LOG, msg, args);
 	va_end(args);
 
+	fprintf(LOG, "\n");
+
 	fflush(LOG);
 }
 
@@ -74,6 +78,8 @@ void warn(char *msg, ...) {
 	va_start(args, msg);
 	vfprintf(LOG, msg, args);
 	va_end(args);
+
+	fprintf(LOG, "\n");
 
 	fflush(LOG);
 }

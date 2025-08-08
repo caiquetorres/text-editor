@@ -20,14 +20,14 @@ bool can_log() {
     return true;
 }
 
-result init_log() {
+int init_log() {
 	LOG = fopen("editor.log", "a");
 	if (LOG == NULL) {
 		perror("editor.log");
-		return FAIL;
+		return -1;
 	}
 	last_log_time = time(NULL);
-	return SUCCESS;
+	return 0;
 }
 
 void info(char *msg, ...) {

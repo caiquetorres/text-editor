@@ -56,6 +56,7 @@ struct editor {
 };
 
 void editor_draw_rows(editor *e, append_buf *buf);
+void editor_draw_status_bar(editor *e, append_buf *buf);
 void editor_update_cursor(editor *e, append_buf *buf);
 void editor_move_cursor(editor *e, int c);
 
@@ -107,6 +108,29 @@ editor *editor_new(char *file_path) {
 		exit(1);
 	}
 
+	e->m = NORMAL;
+
+	char *buf = NULL;
+	size_t capacity;
+	ssize_t size;
+
+	if (fseek(e->fp, 0, SEEK_SET) != 0) {
+		char *msg = strerror(errno);
+		error("fseek: ", msg);
+		exit(1);
+	}
+
+	while ((size = getline(&buf, &capacity, e->fp)) != -1) {
+		while (size > 0 && (*(buf + size - 1) == '\n' || *(buf + size -1) == '\r')) {
+			size--;
+		}
+		editor_append_row(e, buf, (size_t)size);
+	}
+
+	return e;
+}
+
+void editor_refresh_screen(editor *e) {
 	e->screen.width = 0;
 	e->screen.height = 0;
 
@@ -116,39 +140,14 @@ editor *editor_new(char *file_path) {
 	}
 
 	e->screen.height--;
-	// info("height: %zd", e->screen.height);
 
-	// info("%zd %zd", e->screen.height, e->screen.width);
-
-	e->m = NORMAL;
-
-	// char *buf = NULL;
-	// size_t capacity;
-	// ssize_t size;
-
-	// if (fseek(e->fp, 0, SEEK_SET) != 0) {
-	// 	char *msg = strerror(errno);
-	// 	error("fseek: ", msg);
-	// 	exit(1);
-	// }
-
-	// while ((size = getline(&buf, &capacity, e->fp)) != -1) {
-	// 	editor_append_row(e, buf, (size_t)size);
-	// }
-
-	return e;
-}
-
-void editor_refresh_screen(editor *e) {
 	append_buf *buf = append_buf_new();
 
 	clean_screen(buf);
 	hide_cursor(buf);
 
-	// e->cursor.y = 10;
-	// e->cursor.x = 10;
-
 	editor_draw_rows(e, buf);
+	editor_draw_status_bar(e, buf);
 	editor_update_cursor(e, buf);
 
 	show_cursor(buf);
@@ -217,7 +216,7 @@ void editor_move_cursor(editor *e, int c) {
 			}
 			break;
 		case ARROW_RIGHT:
-			if (e->cursor.x < e->screen.width) {
+			if (e->cursor.x < e->screen.width - 1) {
 				e->cursor.x++;
 			}
 			break;
@@ -227,7 +226,7 @@ void editor_move_cursor(editor *e, int c) {
 			}
 			break;
 		case ARROW_DOWN:
-			if (e->cursor.y < e->screen.height) {
+			if (e->cursor.y < e->screen.height - 1) {
 				e->cursor.y++;
 			}
 			break;
@@ -235,13 +234,25 @@ void editor_move_cursor(editor *e, int c) {
 }
 
 void editor_draw_rows(editor *e, append_buf *buf) {
-	for (size_t y = 0; y < e->screen.height; y++) {
+	size_t min = e->screen.height;
+	if (e->rows_count < e->screen.height) {
+		min = e->rows_count;
+	}
+	if (e->rows_count > 0) {
+		for (size_t y = 0; y < min; y++) {
+			row *r = (e->rows + y);
+			append_buf_append(buf, r->buf, r->size);
+			append_buf_append(buf, "\r\n", 2);
+		}
+	}
+	for (size_t y = min; y < e->screen.height; y++) {
 		append_buf_append(buf, "~", 2);
 		append_buf_append(buf, "\x1b[K", 3);
 		append_buf_append(buf, "\r\n", 2);
 	}
+}
 
-	// status bar
+void editor_draw_status_bar(editor *e, append_buf *buf) {
 	char mode_str[30];
 	snprintf(mode_str, sizeof(mode_str), "-- %s --", e->m == NORMAL ? "NORMAL" : "INSERT");
 
@@ -265,6 +276,7 @@ void editor_append_row(editor *e, char *content, size_t size) {
 	(e->rows + i)->size = size;
 	(e->rows + i)->buf = (char *)malloc(size + 1);
 	memcpy((e->rows + i)->buf, content, size);
+
 	*((e->rows + i)->buf + size) = '\0';
 
 	e->rows_count++;

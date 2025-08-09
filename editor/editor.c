@@ -42,15 +42,18 @@ typedef enum {
 	NORMAL,
 } mode;
 
+typedef struct {
+	size_t x, y;
+} vec2;
+
 struct editor {
 	FILE *fp;
 	row *rows;
 	size_t rows_count;
 	mode m;
 
-	struct cursor {
-		size_t x, y;
-	} cursor;
+	vec2 cursor;
+	vec2 offset;
 
 	size_t prev_x;
 
@@ -105,6 +108,9 @@ editor *editor_new(char *file_path) {
 	e->cursor.x = 0;
 	e->cursor.y = 0;
 	e->prev_x = 0;
+
+	e->offset.x = 0;
+	e->offset.y = 0;
 
 	e->fp = fopen(file_path, "r");
 	if (e->fp == NULL) {
@@ -211,7 +217,7 @@ void editor_process_keypress(editor *e) {
 
 void editor_update_cursor(editor *e, append_buf *buf) {
 	char c[32];
-	snprintf(c, sizeof(c), "\x1b[%zd;%zdH", e->cursor.y + 1, e->cursor.x + 1);
+	snprintf(c, sizeof(c), "\x1b[%zd;%zdH", (e->cursor.y - e->offset.y) + 1, (e->cursor.x - e->offset.x) + 1);
 	append_buf_append(buf, c, strlen(c));
 }
 
@@ -237,10 +243,16 @@ void editor_move_cursor(editor *e, int c) {
 			}
 		case ARROW_UP:
 			{
+				if (e->cursor.y - 1 <= 0) {
+					return;
+				}
+				if (e->cursor.y - e->offset.y == 0) {
+					e->offset.y--;
+				}
 				if (e->cursor.y > 0) {
 					e->cursor.y--;
 				}
-				row *r = e->rows + e->cursor.y;
+				row *r = e->rows + e->cursor.y;;
 				e->cursor.x = e->prev_x;
 				if (r->rsize == 0) {
 					e->cursor.x = 0;
@@ -251,10 +263,14 @@ void editor_move_cursor(editor *e, int c) {
 			break;
 		case ARROW_DOWN:
 			{
-				if (e->cursor.y < e->screen.height - 1) {
-					e->cursor.y++;
+				if (e->cursor.y + 1 > e->rows_count) {
+					return;
 				}
-				row *r = e->rows + e->cursor.y;
+				e->cursor.y++;
+				if (e->cursor.y - e->offset.y > e->screen.height - 1) {
+					e->offset.y++;
+				}
+				row *r = e->rows + e->cursor.y;;
 				e->cursor.x = e->prev_x;
 				if (r->rsize == 0) {
 					e->cursor.x = 0;
@@ -273,7 +289,7 @@ void editor_draw_rows(editor *e, append_buf *buf) {
 	}
 	if (e->rows_count > 0) {
 		for (size_t y = 0; y < min; y++) {
-			row *r = (e->rows + y);
+			row *r = (e->rows + y + e->offset.y);
 			append_buf_append(buf, r->rbuf, r->rsize);
 			append_buf_append(buf, "\r\n", 2);
 		}

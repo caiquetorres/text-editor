@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,7 @@
 #include "pool.h"
 #include "../log/log.h"
 
+#define TAB 4
 #define CTRL_KEY(k) (k & 0x1f)
 
 void reset_screen();
@@ -19,7 +21,6 @@ typedef struct {
 	char *buf;
 	size_t size;
 } append_buf;
-
 
 append_buf *append_buf_new();
 void append_buf_append(append_buf *buf, char *str, size_t size);
@@ -32,7 +33,8 @@ void clean_screen(append_buf *buf);
 struct row {
 	char *buf;
 	size_t size;
-	size_t capacity;
+	char *rbuf;
+	size_t rsize;
 };
 
 typedef enum {
@@ -49,6 +51,8 @@ struct editor {
 	struct cursor {
 		size_t x, y;
 	} cursor;
+
+	size_t prev_x;
 
 	struct screen {
 		size_t width, height;
@@ -100,6 +104,7 @@ editor *editor_new(char *file_path) {
 
 	e->cursor.x = 0;
 	e->cursor.y = 0;
+	e->prev_x = 0;
 
 	e->fp = fopen(file_path, "r");
 	if (e->fp == NULL) {
@@ -186,6 +191,8 @@ void editor_process_keypress(editor *e) {
 				e->m = INSERT;
 				break;
 
+			case 'b':
+			case 'w':
 			case ARROW_UP:
 			case ARROW_DOWN:
 			case ARROW_RIGHT:
@@ -213,23 +220,49 @@ void editor_move_cursor(editor *e, int c) {
 		case ARROW_LEFT:
 			if (e->cursor.x > 0) {
 				e->cursor.x--;
+				e->prev_x = e->cursor.x;
 			}
 			break;
 		case ARROW_RIGHT:
-			if (e->cursor.x < e->screen.width - 1) {
-				e->cursor.x++;
+			{
+				row *r = e->rows + e->cursor.y;
+				if (r->rsize == 0) {
+					break;
+				}
+				if (e->cursor.x < r->rsize - 1) {
+					e->cursor.x++;
+					e->prev_x = e->cursor.x;
+				}
+				break;
 			}
-			break;
 		case ARROW_UP:
-			if (e->cursor.y > 0) {
-				e->cursor.y--;
+			{
+				if (e->cursor.y > 0) {
+					e->cursor.y--;
+				}
+				row *r = e->rows + e->cursor.y;
+				e->cursor.x = e->prev_x;
+				if (r->rsize == 0) {
+					e->cursor.x = 0;
+				} else if (e->prev_x > r->rsize - 1) {
+					e->cursor.x = r->rsize - 1;
+				}
 			}
 			break;
 		case ARROW_DOWN:
-			if (e->cursor.y < e->screen.height - 1) {
-				e->cursor.y++;
+			{
+				if (e->cursor.y < e->screen.height - 1) {
+					e->cursor.y++;
+				}
+				row *r = e->rows + e->cursor.y;
+				e->cursor.x = e->prev_x;
+				if (r->rsize == 0) {
+					e->cursor.x = 0;
+				} else if (e->prev_x > r->rsize - 1) {
+					e->cursor.x = r->rsize - 1;
+				}
+				break;
 			}
-			break;
 	}
 }
 
@@ -241,7 +274,7 @@ void editor_draw_rows(editor *e, append_buf *buf) {
 	if (e->rows_count > 0) {
 		for (size_t y = 0; y < min; y++) {
 			row *r = (e->rows + y);
-			append_buf_append(buf, r->buf, r->size);
+			append_buf_append(buf, r->rbuf, r->rsize);
 			append_buf_append(buf, "\r\n", 2);
 		}
 	}
@@ -271,14 +304,36 @@ void editor_draw_status_bar(editor *e, append_buf *buf) {
 
 void editor_append_row(editor *e, char *content, size_t size) {
 	e->rows = (row *)realloc(e->rows, sizeof(row) * (e->rows_count + 1));
+	row *r = (e->rows + e->rows_count);
 
-	size_t i = e->rows_count;
-	(e->rows + i)->size = size;
-	(e->rows + i)->buf = (char *)malloc(size + 1);
-	memcpy((e->rows + i)->buf, content, size);
+	r->size = size;
+	r->buf = (char *)malloc(sizeof(char) * size + 1);
 
-	*((e->rows + i)->buf + size) = '\0';
+	size_t tab_count = 0;
+	for (size_t i = 0; i < size; i++) {
+		if (*(content + i) == '\t') {
+			tab_count++;
+		}
+	}
 
+	r->rbuf = (char *)malloc(sizeof(char) * size + tab_count * (TAB - 1));
+	r->rsize = 0;
+
+	size_t j = 0;
+	for (size_t i = 0; i < size; i++) {
+		*(r->buf + i) = *(content + i);
+		if (*(content + i) == '\t') {
+			for (size_t k = 0; k < TAB; k++) {
+				*(r->rbuf + j) = ' ';
+				j++;
+			}
+		} else {
+			*(r->rbuf + j) = *(r->buf + i);
+			j++;
+		}
+	}
+
+	r->rsize = j;
 	e->rows_count++;
 }
 

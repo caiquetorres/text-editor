@@ -66,6 +66,10 @@ void editor_draw_rows(editor *e, append_buf *buf);
 void editor_draw_status_bar(editor *e, append_buf *buf);
 void editor_update_cursor(editor *e, append_buf *buf);
 void editor_move_cursor(editor *e, int c);
+int editor_move_cursor_up(editor *e);
+int editor_move_cursor_down(editor *e);
+int editor_move_cursor_left(editor *e);
+int editor_move_cursor_right(editor *e);
 
 struct termios orig_termios;
 
@@ -168,6 +172,45 @@ void editor_refresh_screen(editor *e) {
 	append_buf_defer(buf);
 }
 
+int editor_move_word_back(editor *e) {
+	row *r = e->rows + e->cursor.y;
+	if (r->rsize == 0 || e->cursor.x == 0) {
+		if (editor_move_cursor_up(e) != -1) {
+			row *r = e->rows + e->cursor.y;
+			e->cursor.x = r->rsize - 1;
+			e->prev_x = r->rsize - 1;
+			return 0;
+		} else {
+			return -1;
+		}
+	}
+	for (size_t i = e->cursor.x - 1; i > 0; i--) {
+		if (*(r->rbuf + i) != ' ' && *(r->rbuf + i - 1) == ' ') {
+			e->cursor.x = i;
+			e->prev_x = i;
+			return 0;
+		}
+	}
+	e->cursor.x = 0;
+	return 0;
+}
+
+int editor_move_word(editor *e) {
+	row *r = e->rows + e->cursor.y;
+	for (size_t i = e->cursor.x + 1; i < r->rsize; i++) {
+		if (*(r->rbuf + i) != ' ' && *(r->rbuf + i - 1) == ' ') {
+			e->cursor.x = i;
+			e->prev_x = i;
+			return 0;
+		}
+	}
+	if (editor_move_cursor_down(e) != -1) {
+		e->cursor.x = r->rsize - 1;e->cursor.x = 0;
+		e->prev_x = 0;
+	}
+	return 0;
+}
+
 void editor_process_keypress(editor *e) {
 	int c = pool_read_key();
 
@@ -197,8 +240,14 @@ void editor_process_keypress(editor *e) {
 				e->m = INSERT;
 				break;
 
-			case 'b':
 			case 'w':
+				editor_move_word(e);
+				break;
+
+			case 'b':
+				editor_move_word_back(e);
+				break;
+
 			case ARROW_UP:
 			case ARROW_DOWN:
 			case ARROW_RIGHT:
@@ -221,37 +270,63 @@ void editor_update_cursor(editor *e, append_buf *buf) {
 	append_buf_append(buf, c, strlen(c));
 }
 
+int editor_move_cursor_up(editor *e) {
+	if (e->cursor.y == 0) {
+		return -1;
+	}
+	if (e->cursor.y - e->offset.y == 0) {
+		e->offset.y--;
+	}
+	e->cursor.y--;
+	return 0;
+}
+
+int editor_move_cursor_down(editor *e) {
+	if (e->cursor.y + 1 >= e->rows_count) {
+		return -1;
+	}
+	if (e->cursor.y - e->offset.y >= e->screen.height - 1) {
+		e->offset.y++;
+	}
+	e->cursor.y++;
+	return 0;
+}
+
+int editor_move_cursor_left(editor *e) {
+	if (e->cursor.x == 0) {
+		return -1;
+	}
+	e->cursor.x--;
+	return 0;
+}
+
+int editor_move_cursor_right(editor *e) {
+	row *r = e->rows + e->cursor.y;
+	if (r->rsize == 0) {
+		return -1;
+	}
+	if (e->cursor.x == r->rsize - 1) {
+		return -1;
+	}
+	e->cursor.x++;
+	return 0;
+}
+
 void editor_move_cursor(editor *e, int c) {
 	switch (c) {
 		case ARROW_LEFT:
-			if (e->cursor.x > 0) {
-				e->cursor.x--;
+			if (editor_move_cursor_left(e) != -1) {
 				e->prev_x = e->cursor.x;
 			}
 			break;
 		case ARROW_RIGHT:
-			{
-				row *r = e->rows + e->cursor.y;
-				if (r->rsize == 0) {
-					break;
-				}
-				if (e->cursor.x < r->rsize - 1) {
-					e->cursor.x++;
-					e->prev_x = e->cursor.x;
-				}
-				break;
+			if (editor_move_cursor_right(e) != -1) {
+				e->prev_x = e->cursor.x;
 			}
+			break;
 		case ARROW_UP:
 			{
-				if (e->cursor.y - 1 <= 0) {
-					return;
-				}
-				if (e->cursor.y - e->offset.y == 0) {
-					e->offset.y--;
-				}
-				if (e->cursor.y > 0) {
-					e->cursor.y--;
-				}
+				editor_move_cursor_up(e);
 				row *r = e->rows + e->cursor.y;;
 				e->cursor.x = e->prev_x;
 				if (r->rsize == 0) {
@@ -263,13 +338,7 @@ void editor_move_cursor(editor *e, int c) {
 			break;
 		case ARROW_DOWN:
 			{
-				if (e->cursor.y + 1 > e->rows_count) {
-					return;
-				}
-				e->cursor.y++;
-				if (e->cursor.y - e->offset.y > e->screen.height - 1) {
-					e->offset.y++;
-				}
+				editor_move_cursor_down(e);
 				row *r = e->rows + e->cursor.y;;
 				e->cursor.x = e->prev_x;
 				if (r->rsize == 0) {

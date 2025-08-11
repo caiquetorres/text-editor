@@ -22,7 +22,7 @@ int main() {
 		exit(1);
 	}
 
-	editor *e = editor_new("main.c");
+	editor *e = editor_new("Makefile");
 
 	while (true) {
 		editor_refresh_screen(e);

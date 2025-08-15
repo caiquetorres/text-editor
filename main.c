@@ -22,7 +22,7 @@ int main() {
 		exit(1);
 	}
 
-	editor *e = editor_new("Makefile");
+	editor *e = editor_new("sample.txt");
 
 	while (true) {
 		editor_refresh_screen(e);

@@ -51,13 +51,14 @@ struct editor {
 	row *rows;
 	size_t rows_count;
 	mode m;
+	uint32_t dirty;
 
 	vec2 cursor;
 	vec2 offset;
 
 	size_t prev_x;
 
-	struct screen {
+	struct {
 		size_t width, height;
 	} screen;
 };
@@ -70,6 +71,7 @@ int editor_move_cursor_up(editor *e);
 int editor_move_cursor_down(editor *e);
 int editor_move_cursor_left(editor *e);
 int editor_move_cursor_right(editor *e);
+void editor_row_insert_char(editor *e, char c);
 
 struct termios orig_termios;
 
@@ -124,6 +126,7 @@ editor *editor_new(char *file_path) {
 	}
 
 	e->m = NORMAL;
+	e->dirty = 0;
 
 	char *buf = NULL;
 	size_t capacity;
@@ -260,6 +263,9 @@ void editor_process_keypress(editor *e) {
 			case ESC:
 				e->m = NORMAL;
 				break;
+			default:
+				editor_row_insert_char(e, c);
+				break;
 		}
 	}
 }
@@ -358,7 +364,7 @@ void editor_draw_rows(editor *e, append_buf *buf) {
 	}
 	if (e->rows_count > 0) {
 		for (size_t y = 0; y < min; y++) {
-			row *r = (e->rows + y + e->offset.y);
+			row *r = e->rows + y + e->offset.y;
 			append_buf_append(buf, r->rbuf, r->rsize);
 			append_buf_append(buf, "\r\n", 2);
 		}
@@ -428,6 +434,37 @@ void editor_defer(editor *e) {
 	}
 	fclose(e->fp);
 	free(e);
+}
+
+void editor_row_insert_char(editor *e, char c) {
+	row *r = e->rows + e->cursor.y;
+	size_t at = e->cursor.x;
+
+	r->buf = (char *)realloc(r->buf, r->size + 1);
+	memmove(r->buf + at + 1, r->buf + at, r->size - at + 1);
+	r->size++;
+	*(r->buf + at) = c;
+
+	uint32_t tabs_count = 0;
+	for (size_t i = 0; i < r->size; i++) {
+		if (*(r->buf + i) == '\t') {
+			tabs_count++;
+		}
+	}
+
+	free(r->rbuf);
+	r->rbuf = (char *)malloc(r->size + tabs_count * (TAB - 1) + 1);
+
+	size_t i, j;
+	for (i = 0, j = 0; i < r->size; i++, j++) {
+		// TODO: handle tabs
+		*(r->rbuf + j) = *(r->buf + i);
+	}
+
+	r->rsize = i;
+	e->cursor.x++;
+
+	e->dirty++;
 }
 
 append_buf *append_buf_new() {

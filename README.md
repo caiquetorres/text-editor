@@ -18,3 +18,8 @@ Tested on macOS (MacBook).
 ```sh
 make build
 ```
+
+## Demo
+Here’s a short video of the editor in action:
+
+https://github.com/user-attachments/assets/2807e592-2ce2-43e2-8693-ec5cf292fc8d

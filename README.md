@@ -5,6 +5,7 @@ This project is primarily for learning purposes — exploring how text editors w
 
 ## Current Work
 
+- File saving
 - Handling tab characters
 - Handling DEL and BACKSPACE characters
 - Adding more editor commands

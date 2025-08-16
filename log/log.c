@@ -52,7 +52,7 @@ void error(char *msg, ...) {
  	time_t now = time(NULL);
     struct tm *t = localtime(&now);
 
-    fprintf(LOG, "[%02d:%02d:%02d %04d/%02d/%02d] ERRO ",
+    fprintf(LOG, "[%02d:%02d:%02d %04d/%02d/%02d] ERROR ",
     	t->tm_hour, t->tm_min, t->tm_sec,
     	t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
 

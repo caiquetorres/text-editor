@@ -9,12 +9,20 @@
 #include "editor/editor.h"
 #include "log/log.h"
 
-int main() {
+int main(int argc, char **argv) {
 	if (init_log() == -1) {
 		char *msg = strerror(errno);
 		error("init_log: %s", msg);
 		exit(1);
 	}
+
+	if (argc < 2) {
+		error("missing file path");
+		fprintf(stderr, "missing file path\n");
+		exit(1);
+	}
+
+	char *file_path = *(argv + 1);
 
 	if (enable_raw_mode() == -1) {
 		char *msg = strerror(errno);
@@ -22,7 +30,7 @@ int main() {
 		exit(1);
 	}
 
-	editor *e = editor_new("sample.txt");
+	editor *e = editor_new(file_path);
 
 	while (true) {
 		editor_refresh_screen(e);

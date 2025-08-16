@@ -13,4 +13,4 @@ clean:
 	rm -f $(TARGET)
 
 run: build
-	@./$(TARGET)
+	@./$(TARGET) sample.txt

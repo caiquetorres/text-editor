@@ -6,6 +6,7 @@ This project is primarily for learning purposes — exploring how text editors w
 ## Current Work
 
 - Handling tab characters
+- Handling DEL and BACKSPACE characters
 - Adding more editor commands
 - Improving the CLI
 
